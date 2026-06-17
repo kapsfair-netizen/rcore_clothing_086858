@@ -1,17 +1,16 @@
-function GetSkinByIdentifier(playerIdentifier)
-    local outfitData = DbGetCurrentOutfit(playerIdentifier)
-    
-    if #outfitData > 0 then
-        local currentOutfit = outfitData[1]
-        local skinData = {
-            ped_model = currentOutfit.ped_model,
-            skin = json.decode(currentOutfit.outfit)
-        }
-        
-        return skinData
-    else
+function GetSkinchangerSkinByIdentifier(serverId, identifier)
+    local outfitData = DbGetCurrentOutfit(identifier)
+
+    if #outfitData == 0 then
         return {}
     end
+
+    outfitData = outfitData[1]
+
+    local outfit = json.decode(outfitData.outfit)
+    local pedModel = outfitData.ped_model
+
+    return SvResolveRcoreOutfitToSkinchanger(serverId, outfit, pedModel)
 end
 
-exports("getSkinByIdentifier", GetSkinByIdentifier)
+exports('GetSkinchangerSkinByIdentifier', GetSkinchangerSkinByIdentifier)

@@ -1,55 +1,34 @@
-local reqId = 0
-local cbMap = {}
+RegisterNetEvent('rcore_clothing:qb:multicharRequestPed', function(reqId, citizenid, coords)
+    local Source = source
+    local outfit = DbGetCurrentOutfit(citizenid)
 
-local function createPed(model, coords)
+    if outfit and outfit[1] and outfit[1].ped_model then
+        local model = outfit[1].ped_model
+        local outfit = json.decode(outfit[1].outfit)
 
-    RequestModel(model)
-    while not HasModelLoaded(model) do
-        Wait(0)
-    end
-    local charPed = CreatePed(2, model, coords.x, coords.y, coords.z - 0.98, coords.w, false, true)
-    SetPedComponentVariation(charPed, 0, 0, 0, 2)
-    FreezeEntityPosition(charPed, false)
-    SetEntityInvincible(charPed, true)
-    PlaceObjectOnGroundProperly(charPed)
-    SetBlockingOfNonTemporaryEvents(charPed, true)
-    
-    return charPed
-end
-
-AddEventHandler('rcore_clothing:qb:multichar', function(cfg, existsCb, pedCb)
-    existsCb()
-
-    local citizenid = cfg.citizenid
-    local coords = cfg.coords
-
-    local nowReqId = reqId
-    reqId = reqId + 1
-
-    cbMap[nowReqId] = pedCb
-
-    TriggerServerEvent('rcore_clothing:qb:multicharRequestPed', nowReqId, citizenid, coords)
-end)
-
-RegisterNetEvent('rcore_clothing:qb:multicharResponsePed', function(reqId, data)
-    local cb = cbMap[reqId]
-
-    if type(data.model) == "string" then
-        data.model = tonumber(data.model)
-    end
-
-    local ped = createPed(data.model, data.coords)
-
-    if data.rcore_clothing then
-        ApplyPedClothingOutfit(ped, data.outfit)
-    elseif data.qb_clothing then
-        TriggerEvent('qb-clothing:client:loadPlayerClothing', json.decode(data.skin), ped)
+        TriggerClientEvent('rcore_clothing:qb:multicharResponsePed', Source, reqId, {
+            rcore_clothing = true,
+            model = model, 
+            coords = coords,
+            outfit = outfit,
+        })
     else
-        print("Error: unknown data source")
-    end
+        local result = MySQL.Sync.fetchAll('SELECT * FROM playerskins WHERE citizenid = @cid AND active = 1', {
+            ['@cid'] = citizenid
+        })
+        
+        if result[1] then
+            local model = result[1].model
+            local skin = result[1].skin
 
-    if cb then
-        cb(ped)
+            TriggerClientEvent('rcore_clothing:qb:multicharResponsePed', Source, reqId, {
+                qb_clothing = true,
+                model = model, 
+                coords = coords,
+                skin = skin,
+            })
+        else
+            print("Error: no skin found for", Source, citizenid, "in primary or fallback storage")
+        end
     end
-
 end)

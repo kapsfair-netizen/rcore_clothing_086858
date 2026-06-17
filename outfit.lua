@@ -1,146 +1,154 @@
--- Prop component offset for usable hash generation
-local PROP_COMPONENT_OFFSET = 100
-
--- Face feature and head overlay ranges
-local MAX_FACE_FEATURES = 19
-local MAX_HEAD_OVERLAYS = 12
-
-function GetPropUsableHash(pedHandle, propId)
-    local propIndex = GetPedPropIndex(pedHandle, propId)
-    local propTexture = GetPedPropTextureIndex(pedHandle, propId)
-    local propNameHash = GetHashNameForProp(pedHandle, propId, propIndex, propTexture)
-    
-    return GetUsableHash(propId + PROP_COMPONENT_OFFSET, propIndex, propTexture, propNameHash)
+local L0_1, L1_1, L2_1
+L0_1 = RegisterNetEvent
+L1_1 = "rcore_clothing:savePersonalOutfit"
+function L2_1(A0_2, A1_2)
+  local L2_2, L3_2, L4_2, L5_2, L6_2, L7_2, L8_2, L9_2, L10_2
+  L2_2 = source
+  L3_2 = GetPlayerPed
+  L4_2 = L2_2
+  L3_2 = L3_2(L4_2)
+  L4_2 = GetEntityModel
+  L5_2 = L3_2
+  L4_2 = L4_2(L5_2)
+  L5_2 = GetPlayerFwIdentifier
+  L6_2 = L2_2
+  L5_2 = L5_2(L6_2)
+  L6_2 = DbSavePersonalOutfit
+  L7_2 = L5_2
+  L8_2 = L4_2
+  L9_2 = A0_2
+  L10_2 = A1_2
+  L6_2(L7_2, L8_2, L9_2, L10_2)
 end
-
-function CollectPedAppearanceData(includeHeadData)
-    local appearanceData = {
-        props = {},
-        components = {}
-    }
-    
-    local playerPed = PlayerPedId()
-    
-    -- Collect prop data
-    appearanceData.props["0"] = GetPropUsableHash(playerPed, 0)  -- Hats
-    appearanceData.props["1"] = GetPropUsableHash(playerPed, 1)  -- Glasses
-    appearanceData.props["2"] = GetPropUsableHash(playerPed, 2)  -- Earrings
-    appearanceData.props["6"] = GetPropUsableHash(playerPed, 6)  -- Watches
-    appearanceData.props["7"] = GetPropUsableHash(playerPed, 7)  -- Bracelets
-    
-    -- Collect clothing component data (skip component 2/hair for now)
-    for componentId = 0, 11 do
-        if componentId ~= 2 then
-            local drawableId = GetPedDrawableVariation(playerPed, componentId)
-            local textureId = GetPedTextureVariation(playerPed, componentId)
-            local nameHash = GetHashNameForComponent(playerPed, componentId, drawableId, textureId)
-            local usableHash = GetUsableHash(componentId, drawableId, textureId, nameHash)
-            
-            appearanceData.components[tostring(componentId)] = usableHash
-        end
-    end
-    
-    -- Collect decoration/decal data
-    local appliedDecals = GetAppliedDecals()
-    for componentId, decalData in pairs(appliedDecals) do
-        if not appearanceData.decals then
-            appearanceData.decals = {}
-        end
-        
-        appearanceData.decals[tostring(componentId)] = {
-            collection = decalData[1],
-            name = decalData[2]
-        }
-    end
-    
-    -- Collect eye color
-    appearanceData.eyeColor = GetPedEyeColor(playerPed)
-    
-    -- Collect detailed head data if requested
-    if includeHeadData then
-        CollectHeadData(appearanceData, playerPed)
-    end
-    
-    return appearanceData
+L0_1(L1_1, L2_1)
+L0_1 = RegisterNetEvent
+L1_1 = "rcore_clothing:saveShopOutfit"
+function L2_1(A0_2, A1_2, A2_2, A3_2, A4_2, A5_2)
+  local L6_2, L7_2, L8_2, L9_2, L10_2, L11_2, L12_2, L13_2, L14_2, L15_2, L16_2
+  L6_2 = source
+  L7_2 = GetPlayerPed
+  L8_2 = L6_2
+  L7_2 = L7_2(L8_2)
+  L8_2 = GetEntityModel
+  L9_2 = L7_2
+  L8_2 = L8_2(L9_2)
+  L9_2 = AceCan
+  L10_2 = source
+  L11_2 = Permissions
+  L11_2 = L11_2.ADMIN_OUTFIT_EDITOR
+  L9_2 = L9_2(L10_2, L11_2)
+  if L9_2 then
+    L9_2 = DbSaveShopOutfit
+    L10_2 = L8_2
+    L11_2 = A0_2
+    L12_2 = A1_2
+    L13_2 = A2_2
+    L14_2 = A3_2
+    L15_2 = A4_2
+    L16_2 = A5_2
+    L9_2(L10_2, L11_2, L12_2, L13_2, L14_2, L15_2, L16_2)
+  else
+    L9_2 = print
+    L10_2 = "^1Player with id "
+    L11_2 = source
+    L12_2 = " tried to save shop outfit without permission."
+    L10_2 = L10_2 .. L11_2 .. L12_2
+    L9_2(L10_2)
+  end
 end
-
-function CollectHeadData(appearanceData, playerPed)
-    -- Collect head blend data
-    local headBlendData = GetFormattedPedHeadblendData(playerPed)
-    
-    -- Use pre-shrink data if head is shrinked
-    if IsHeadShrinked() then
-        headBlendData = GetPreShrinkHeadblend()
-    end
-    
-    appearanceData.headblend = {
-        maleModel = headBlendData[1],
-        femaleModel = headBlendData[2],
-        maleTone = headBlendData[4],
-        femaleTone = headBlendData[5],
-        modelBlend = headBlendData[7],
-        toneBlend = headBlendData[8]
-    }
-    
-    -- Collect face features
-    appearanceData.faceFeatures = {}
-    
-    if IsHeadShrinked() then
-        local preShrinkData = GetPreShrink()
-        for featureIndex = 0, MAX_FACE_FEATURES do
-            appearanceData.faceFeatures[tostring(featureIndex)] = preShrinkData[featureIndex]
-        end
-    else
-        for featureIndex = 0, MAX_FACE_FEATURES do
-            local featureValue = GetPedFaceFeature(playerPed, featureIndex)
-            appearanceData.faceFeatures[tostring(featureIndex)] = featureValue
-        end
-    end
-    
-    -- Collect head overlays (makeup, tattoos, etc.)
-    appearanceData.headOverlay = {}
-    
-    for overlayIndex = 0, MAX_HEAD_OVERLAYS do
-        local hasOverlay, overlayId, _, color1, color2, opacity = GetPedHeadOverlayData(playerPed, overlayIndex)
-        
-        if hasOverlay then
-            appearanceData.headOverlay[tostring(overlayIndex)] = {
-                id = overlayId,
-                color1 = color1,
-                color2 = color2,
-                opacity = opacity
-            }
-        end
-    end
-    
-    -- Collect hair data (component 2)
-    local hairComponentId = 2
-    local hairDrawable = GetPedDrawableVariation(playerPed, hairComponentId)
-    local hairTexture = GetPedTextureVariation(playerPed, hairComponentId)
-    local hairNameHash = GetHashNameForComponent(playerPed, hairComponentId, hairDrawable, hairTexture)
-    local hairUsableHash = GetUsableHash(hairComponentId, hairDrawable, hairTexture, hairNameHash)
-    
-    appearanceData.components["2"] = hairUsableHash
-    
-    appearanceData.hair = {
-        id = hairUsableHash,
-        color1 = GetPedHairColor(playerPed),
-        color2 = GetPedHairHighlightColor(playerPed)
-    }
+L0_1(L1_1, L2_1)
+L0_1 = RegisterNetEvent
+L1_1 = "rcore_clothing:getPersonalOutfits"
+function L2_1(A0_2)
+  local L1_2, L2_2, L3_2, L4_2, L5_2, L6_2, L7_2, L8_2, L9_2, L10_2
+  L1_2 = source
+  L2_2 = GetPlayerPed
+  L3_2 = L1_2
+  L2_2 = L2_2(L3_2)
+  L3_2 = GetEntityModel
+  L4_2 = L2_2
+  L3_2 = L3_2(L4_2)
+  L4_2 = GetPlayerFwIdentifier
+  L5_2 = L1_2
+  L4_2 = L4_2(L5_2)
+  L5_2 = DbGetPersonalOutfits
+  L6_2 = L4_2
+  L7_2 = L3_2
+  L5_2 = L5_2(L6_2, L7_2)
+  L6_2 = TriggerClientEvent
+  L7_2 = "rcore_clothing:setPersonalOutfits"
+  L8_2 = L1_2
+  L9_2 = A0_2
+  L10_2 = L5_2
+  L6_2(L7_2, L8_2, L9_2, L10_2)
 end
-
-function SaveCurrentAsOutfit(outfitName)
-    local outfitData = CollectPedAppearanceData(Config.SaveHeadWithOutfit)
-    TriggerServerEvent("rcore_clothing:savePersonalOutfit", outfitName, outfitData)
+L0_1(L1_1, L2_1)
+L0_1 = RegisterNetEvent
+L1_1 = "rcore_clothing:getShopOutfits"
+function L2_1(A0_2, A1_2)
+  local L2_2, L3_2, L4_2, L5_2, L6_2, L7_2, L8_2, L9_2, L10_2, L11_2, L12_2, L13_2, L14_2
+  L2_2 = source
+  L3_2 = GetPlayerPed
+  L4_2 = L2_2
+  L3_2 = L3_2(L4_2)
+  L4_2 = GetEntityModel
+  L5_2 = L3_2
+  L4_2 = L4_2(L5_2)
+  L5_2 = FwGetPlayerJobData
+  L6_2 = L2_2
+  L5_2 = L5_2(L6_2)
+  L6_2 = L5_2.name
+  L7_2 = L5_2.grade
+  L8_2 = AppendAces
+  L9_2 = L2_2
+  L10_2 = GetPlayerIdentifiers
+  L11_2 = L2_2
+  L10_2, L11_2, L12_2, L13_2, L14_2 = L10_2(L11_2)
+  L8_2 = L8_2(L9_2, L10_2, L11_2, L12_2, L13_2, L14_2)
+  L9_2 = DbGetShopOutfits
+  L10_2 = L4_2
+  L11_2 = A1_2
+  L12_2 = L6_2
+  L13_2 = L7_2
+  L14_2 = L8_2
+  L9_2 = L9_2(L10_2, L11_2, L12_2, L13_2, L14_2)
+  L10_2 = DbEnrichOutfitsWithRestrictions
+  L11_2 = L9_2
+  L10_2 = L10_2(L11_2)
+  L9_2 = L10_2
+  L10_2 = TriggerClientEvent
+  L11_2 = "rcore_clothing:setShopOutfits"
+  L12_2 = L2_2
+  L13_2 = A0_2
+  L14_2 = L9_2
+  L10_2(L11_2, L12_2, L13_2, L14_2)
 end
-
-function SaveCurrentAsShopOutfit(shopId, outfitName, price, category, subcategory)
-    local outfitData = CollectPedAppearanceData()
-    TriggerServerEvent("rcore_clothing:saveShopOutfit", shopId, outfitName, price, category, subcategory, outfitData)
+L0_1(L1_1, L2_1)
+L0_1 = RegisterNetEvent
+L1_1 = "rcore_clothing:editShopOutfit"
+function L2_1(A0_2, A1_2, A2_2, A3_2, A4_2)
+  local L5_2, L6_2, L7_2, L8_2, L9_2, L10_2, L11_2
+  L5_2 = source
+  L6_2 = AceCan
+  L7_2 = L5_2
+  L8_2 = Permissions
+  L8_2 = L8_2.ADMIN_EDIT_METADATA
+  L6_2 = L6_2(L7_2, L8_2)
+  if L6_2 then
+    L6_2 = DbEditShopOutfit
+    L7_2 = A0_2
+    L8_2 = A1_2
+    L9_2 = A2_2
+    L10_2 = A3_2
+    L11_2 = A4_2
+    L6_2(L7_2, L8_2, L9_2, L10_2, L11_2)
+  else
+    L6_2 = print
+    L7_2 = "^1Player with id "
+    L8_2 = L5_2
+    L9_2 = " tried to edit shop outfit metadata without permission."
+    L7_2 = L7_2 .. L8_2 .. L9_2
+    L6_2(L7_2)
+  end
 end
-
--- Event handlers
-RegisterNetEvent("rcore_clothing:saveCurrentSkin", function()
-    local skinData = CollectPedAppearanceData(true)
-    TriggerServerEvent("rcore_clothing:setOutfitAsCurrent", skinData)
-end)
+L0_1(L1_1, L2_1)

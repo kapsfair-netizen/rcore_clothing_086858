@@ -22,69 +22,147 @@ CreateThread(function()
     if Config.Framework == 1 then
         local ESX = Citizen.Await(GetSharedObjectSafe())
 
-        local jobName, jobIsBoss, jobGrade = nil, nil, nil
+        SendNotification = function(source, text)
+            TriggerClientEvent(Config.FrameworkTriggers['notify'], source, text)
+        end
 
-        Citizen.CreateThread(function()
-            while true do
-                local playerData = ESX.GetPlayerData()
+        GetPlayerFwIdentifier = function(serverId)
+            local xPlayer = ESX.GetPlayerFromId(serverId)
+            
+            if xPlayer or not Config.UseGetIdentifierFallback then
+                return xPlayer.identifier
+            else
+                while true do
+                    local xPlayer = ESX.GetPlayerFromId(serverId)
 
-                if playerData and playerData.job then
-                    jobName = playerData.job.name
-                    jobIsBoss = playerData.job.grade_name:lower() == "boss"
-                    jobGrade = playerData.job.grade
-                else
-                    jobName = nil
-                    jobIsBoss = nil
-                    jobGrade = nil
+                    if not xPlayer then
+                        Wait(1000)
+                    else
+                        return xPlayer.identifier
+                    end
+                end
+            end
+        end
+
+        FwGetPlayerJobData = function(serverId)
+            local xPlayer = ESX.GetPlayerFromId(serverId)
+
+            if xPlayer then
+                local jobInfo = xPlayer.getJob()
+
+                if jobInfo.name ~= nil then
+                    return {
+                        name = jobInfo.name,
+                        grade = jobInfo.grade,
+                    }
+                end
+            end
+
+            return {}
+        end
+
+        local allServerJobs = nil
+
+        GetAllServerJobs = function()
+            if allServerJobs then
+                return allServerJobs
+            end
+
+            local rawJobs = ESX.Jobs
+
+            if #rawJobs == 0 then
+                local ESX = Citizen.Await(GetSharedObjectSafe())
+
+                rawJobs = ESX.Jobs
+            end
+
+            for jobKey, jobData in pairs(rawJobs) do
+                local grades = jobData.grades
+
+                for gradeKey, gradeData in pairs(grades) do
+                    grades[gradeKey] = {
+                        name = gradeData.label,
+                        key = gradeKey,
+                    }
                 end
 
-                Wait(2000)
+                rawJobs[jobKey] = {
+                    name = jobData.label or jobKey,
+                    grades = grades,
+                }
             end
+
+            allServerJobs = rawJobs
+            return rawJobs
+        end
+
+        local getPlayerSkinReqId = 0
+        local resolvedSkins = {}
+
+        ESX.RegisterServerCallback('esx_skin:getPlayerSkin', function(source, cb)
+            local Source = source
+            local ped = GetPlayerPed(Source)
+            local pedModel = GetEntityModel(ped)
+            local identifier = GetPlayerFwIdentifier(Source)
+            local xPlayer = ESX.GetPlayerFromId(Source)
+
+            local currentOutfit, pedModel = DbGetOrCreateCurrentOutfit(identifier, pedModel)
+
+            local r = SvResolveRcoreOutfitToSkinchanger(Source, currentOutfit, pedModel)
+
+            local jobSkin = {
+                skin_male   = xPlayer.job.skin_male,
+                skin_female = xPlayer.job.skin_female
+            }
+
+            cb(r, jobSkin)
         end)
 
-        ShowNotification = function(text, type)
-            local notificationType = "info"
-
-            if type == "error" then
-                notificationType = "error"
-            end
-
-            TriggerEvent(Config.FrameworkTriggers['notify'], text, notificationType)
-        end
-
-        GetPlayersJobName = function()
-            return jobName, jobIsBoss
-        end
-
-        GetPlayersJobGrade = function()
-            return jobGrade
-        end
-
-        GetPlayerStartingModel = function()
-            local gender = 0
-
-            local player = ESX.GetPlayerData()
-
-            if player then
-                gender = player.sex and (player.sex == 'm' and 0 or 1) or 0
-            end
-
-            return ResolveModelFromGender(gender)
-        end
-
-        GetPlayerLoadout = function()
-            return ESX.GetPlayerData().loadout
-        end
-
-        RegisterNetEvent('esx:onPlayerSpawn', function()
-            for i = 1, 3 do
-                TriggerServerEvent('rcore_clothing:loadPlayerClothing')
-                Wait(500)
-            end
-
-            if GetPlayerLoadout() then
-                TriggerEvent('esx:restoreLoadout')
-            end
+        RegisterNetEvent('rcore_clothing:compat:submitResolvedSkinStuff', function(reqId, skin)
+            resolvedSkins[reqId] = skin
         end)
+
+        SvResolveRcoreOutfitToSkinchanger = function(serverId, outfit, pedModel)
+            local curGetPlayerSkinReqId = getPlayerSkinReqId
+            getPlayerSkinReqId = getPlayerSkinReqId + 1
+            TriggerClientEvent('rcore_clothing:compat:resolveSkinStuff', serverId, curGetPlayerSkinReqId, outfit, pedModel)
+
+            while not resolvedSkins[curGetPlayerSkinReqId] do
+                Wait(0)
+            end
+
+            local r = resolvedSkins[curGetPlayerSkinReqId]
+            resolvedSkins[curGetPlayerSkinReqId] = nil
+
+            return r
+        end
+        
+
+        FrameworkGetPlayerMoney = function(serverId, moneyType)
+            local xPlayer = ESX.GetPlayerFromId(serverId)
+
+            if xPlayer then
+                if moneyType == 'cash' then
+                    return xPlayer.getMoney()
+                elseif moneyType == 'bank' then
+                    return xPlayer.getAccount('bank').money
+                end
+            end
+
+            return 0
+        end
+
+        FrameworkTakePlayerMoney = function(serverId, moneyType, amount)
+            local xPlayer = ESX.GetPlayerFromId(serverId)
+
+            if xPlayer then
+                if moneyType == 'cash' then
+                    xPlayer.removeMoney(amount)
+                elseif moneyType == 'bank' then
+                    xPlayer.removeAccountMoney('bank', amount)
+                end
+            end
+            return 0
+        end
     end
 end)

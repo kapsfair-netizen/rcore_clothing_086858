@@ -18,79 +18,98 @@ if Config.Framework == 2 then
     end
 end
 
-
 CreateThread(function()
     if Config.Framework == 2 then
         local QBCore = Citizen.Await(GetSharedObjectSafe())
 
-        local jobName, jobIsBoss, jobGrade = nil, nil, nil
+        SendNotification = function(source, text)
+            TriggerClientEvent(Config.FrameworkTriggers['notify'], source, text)
+        end
 
-        Citizen.CreateThread(function()
-            while true do
-                local playerData = QBCore.Functions.GetPlayerData()
+        GetPlayerFwIdentifier = function(serverId)
+            local qbPlayer = QBCore.Functions.GetPlayer(serverId)
 
-                if playerData and playerData.job then
-                    jobName = playerData.job.name
-                    if playerData.job.grade.isboss then
-                        jobIsBoss = true
+            if qbPlayer or not Config.UseGetIdentifierFallback then
+                return qbPlayer.PlayerData.citizenid
+            else
+                while true do
+                    local qbPlayer = QBCore.Functions.GetPlayer(serverId)
+
+                    if not qbPlayer then
+                        Wait(1000)
                     else
-                        jobIsBoss = playerData.job.isboss
+                        return qbPlayer.PlayerData.citizenid
                     end
+                end
+            end
+        end
 
-                    jobGrade = playerData.job.grade.level
-                else
-                    jobName = nil
-                    jobIsBoss = nil
-                    jobGrade = nil
+        FwGetPlayerJobData = function(serverId)
+            local player = QBCore.Functions.GetPlayer(serverId)
+            
+            if player and player.PlayerData and player.PlayerData.job then
+                return {
+                    name = player.PlayerData.job.name,
+                    grade = player.PlayerData.job.grade.level,
+                }
+            end
+
+            return {}
+        end
+
+        local allServerJobs = nil
+        GetAllServerJobs = function()
+            if allServerJobs then
+                return allServerJobs
+            end
+
+            local rawJobs = QBCore.Shared.Jobs
+
+            for jobKey, jobData in pairs(rawJobs) do
+                local grades = jobData.grades
+
+                for gradeKey, gradeData in pairs(grades) do
+                    grades[gradeKey] = {
+                        name = gradeData.name,
+                        key = gradeKey,
+                    }
                 end
 
-                Wait(2000)
-            end
-        end)
-
-        ShowNotification = function(msg, type)
-            local notificationType = "success"
-
-            if type == "error" then
-                notificationType = "error"
+                rawJobs[jobKey] = {
+                    name = jobData.label or jobKey,
+                    grades = grades,
+                }
             end
 
-            QBCore.Functions.Notify(msg, notificationType)
+            allServerJobs = rawJobs
+
+            return rawJobs
+        end
+        
+        -- moneyType = cash/bank
+        FrameworkGetPlayerMoney = function(serverId, moneyType)
+            if moneyType ~= 'cash' and moneyType ~= 'bank' then
+                print("Invalid moneyType: " .. moneyType)
+                return -1
+            end
+
+            local player = QBCore.Functions.GetPlayer(serverId)
+            return player.PlayerData.money[moneyType]
         end
 
-        GetPlayersJobName = function()
-            return jobName, jobIsBoss
-        end
-
-        GetPlayersJobGrade = function()
-            return jobGrade
-        end
-
-        RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
-            for i = 1, 3 do
-                TriggerServerEvent('rcore_clothing:loadPlayerClothing')
-                Wait(500)
-            end
-        end)
-
-        GetPlayerStartingModel = function()
-            local model = nil
-            QBCore.Functions.GetPlayerData(function(PlayerData)
-                model = ResolveModelFromGender(PlayerData.charinfo.gender)
-            end)
-
-            for i = 1, 50 do
-                if model then
-                    break
-                end
-                Wait(0)
+        FrameworkTakePlayerMoney = function(serverId, moneyType, amount)
+            if moneyType ~= 'cash' and moneyType ~= 'bank' then
+                print("Invalid moneyType: " .. moneyType)
+                return false
             end
 
-            if model == nil then
-                print("Could not load player model based on `gender`")
+            if amount < 0 then
+                print("Invalid amount: " .. amount)
+                return false
             end
 
-            return model
+            local qbPlayer = QBCore.Functions.GetPlayer(serverId)
+            return qbPlayer.Functions.RemoveMoney(moneyType, amount, "clothing")
         end
     end
 end)
