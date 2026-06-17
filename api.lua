@@ -1,158 +1,323 @@
-local callbackCounter = 0
-local pendingCallbacks = {}
+local playerRequestCounts = {}
 
-function NotifyUser(message, isError)
-    if Config.UseFrameworkNotify then
-        if Config.Framework == 1 or Config.Framework == 2 then
-            local notificationType = nil
-            if isError then
-                notificationType = "error"
-            end
-            ShowNotification(message, notificationType)
+function CheckRateLimit(playerId)
+    if not playerRequestCounts[playerId] then
+        playerRequestCounts[playerId] = 0
+    end
+    
+    playerRequestCounts[playerId] = playerRequestCounts[playerId] + 1
+    
+    Citizen.SetTimeout(3000, function()
+        playerRequestCounts[playerId] = playerRequestCounts[playerId] - 1
+        if playerRequestCounts[playerId] <= 0 then
+            playerRequestCounts[playerId] = nil
         end
+    end)
+    
+    return playerRequestCounts[playerId] > 15
+end
+
+RegisterNetEvent("rcore_clothing:queryShop", function(callbackId, gender, shopId, queryData)
+    local playerId = source
+    
+    if CheckRateLimit(playerId) then
+        TriggerClientEvent("rcore_clothing:queryShopResponse", playerId, callbackId, "ratelimited")
+        return
+    end
+    
+    local playerJobData = FwGetPlayerJobData(playerId)
+    local jobName = playerJobData.name
+    local jobGrade = playerJobData.grade
+    local playerIdentifier = GetPlayerFwIdentifier(playerId)
+    local playerIdentifiers = AppendAces(playerId, GetPlayerIdentifiers(playerId))
+    
+    local shopConfig = queryData.shopConfig
+    local hasChangingRoom = false
+    local hasEverything = false
+    local isEverythingFree = false
+    
+    if shopConfig then
+        if shopConfig.modifiers then
+            hasChangingRoom = shopConfig.modifiers[SHOP_MODIFIERS.CHANGING_ROOM]
+            hasEverything = shopConfig.modifiers[SHOP_MODIFIERS.HAS_EVERYTHING]
+            isEverythingFree = shopConfig.modifiers[SHOP_MODIFIERS.IS_EVERYTHING_FREE]
+        end
+    end
+    
+    local shopItems = {}
+    
+    if queryData.componentId == 33 then
+        print("this shouldnt hit backend component", queryData.componentId)
     else
-        UINotify(message, isError)
-    end
-end
-
-function GetCurrentOutfit()
-    local callbackId = callbackCounter
-    callbackCounter = callbackCounter + 1
-    
-    TriggerServerEvent("rcore_clothing:requestCurrentOutfit", callbackId)
-    
-    while pendingCallbacks[callbackId] == nil do
-        Wait(0)
-    end
-    
-    local outfitData = pendingCallbacks[callbackId]
-    pendingCallbacks[callbackId] = nil
-    
-    local skinData = outfitData.outfit or outfitData.skin
-    outfitData.skin = skinData
-    
-    return outfitData
-end
-
-RegisterNetEvent("rcore_clothing:responseCurrentOutfit", function(callbackId, outfitData)
-    pendingCallbacks[callbackId] = outfitData
-end)
-
-RegisterNetEvent("rcore_clothing:internal:itemPurchased", function(purchasedItems, additionalHashes)
-    for _, item in pairs(purchasedItems) do
-        local resolvedItem = ResolveItemToClothingOrPropItem(PlayerPedId(), item)
+        queryData.job = jobName
+        queryData.jobGrade = jobGrade
+        queryData.identifiers = playerIdentifiers
+        queryData.showEverything = hasEverything
+        queryData.showAll = false
         
-        TriggerEvent("rcore_clothing:onItemPurchase", 
-            resolvedItem.componentId,
-            resolvedItem.drawableId,
-            resolvedItem.textureId,
-            item.label,
-            {
-                name_hash = item.name_hash,
-                arms = item.arms,
-                isProp = resolvedItem.component_id and resolvedItem.component_id >= 100
-            }
-        )
-    end
-    
-    for _, nameHash in pairs(additionalHashes) do
-        local itemData = { name_hash = nameHash }
-        local resolvedItem = ResolveItemToClothingOrPropItem(PlayerPedId(), itemData)
+        local changingRoomIdentifier = nil
+        if hasChangingRoom and playerIdentifier then
+            changingRoomIdentifier = playerIdentifier
+        end
+        queryData.changingRoomIdentifier = changingRoomIdentifier
         
-        TriggerEvent("rcore_clothing:onItemPurchase",
-            resolvedItem.componentId,
-            resolvedItem.drawableId,
-            resolvedItem.textureId,
-            nameHash.label,
-            {
-                name_hash = nameHash
-            }
-        )
-    end
-end)
-
-RegisterNetEvent("rcore_clothing:clearPed", function()
-    local allObjects = GetGamePool("CObject")
-    local playerPed = PlayerPedId()
-    
-    for i = 1, #allObjects do
-        local object = allObjects[i]
-        if IsEntityAttachedToEntity(object, playerPed) then
-            DeleteEntity(object)
+        shopItems = QueryShopFromDb(gender, shopId, queryData)
+        
+        if isEverythingFree or hasChangingRoom then
+            for _, item in pairs(shopItems) do
+                item.price = 0
+            end
         end
     end
     
-    ShowNotification(_U("clear_ped"))
+    TriggerClientEvent("rcore_clothing:queryShopResponse", playerId, callbackId, shopItems)
 end)
 
-RegisterNetEvent("rcore_clothing:openShop", function(shopType, shopConfig)
-    if string.len(shopType) == 0 then
-        print("rcore_clothing:openShop: shopType can't be empty!")
-        return
+RegisterNetEvent("rcore_clothing:queryShopAll", function(callbackId, gender, shopId, queryData)
+    local playerId = source
+    local shopItems = {}
+    
+    if queryData.componentId == 33 then
+        print("this shouldnt hit backend component", queryData.componentId)
+    else
+        queryData.job = nil
+        queryData.jobGrade = nil
+        queryData.identifiers = nil
+        queryData.showEverything = false
+        queryData.showAll = true
+        queryData.changingRoomIdentifier = nil
+        
+        shopItems = QueryShopFromDb(gender, shopId, queryData)
     end
     
-    RequestOpenClothingShopUI(shopType, shopConfig)
+    TriggerClientEvent("rcore_clothing:queryShopResponse", playerId, callbackId, shopItems)
 end)
 
-RegisterNetEvent("rcore_clothing:openJobChangingRoom", function(jobName, roomConfig)
-    if string.len(jobName) == 0 then
-        print("rcore_clothing:openJobChangingRoom: job can't be empty!")
-        return
+function QueryShopFromDb(gender, shopId, queryData)
+    local dbItems = DbGetShopItems(gender, shopId, queryData)
+    local enrichedItems = DbEnrichWithRestrictions(dbItems)
+    local formattedItems = {}
+    
+    for _, item in pairs(enrichedItems) do
+        table.insert(formattedItems, FormatClothingItem(queryData.showAll, item, gender))
     end
     
-    local shopType = "job_" .. jobName
-    
-    if not roomConfig then
-        roomConfig = {}
+    if #formattedItems > 0 then
+        AddEmptyClothingItems(formattedItems, queryData, gender)
     end
     
-    if not roomConfig.modifiers then
-        roomConfig.modifiers = {}
-    end
-    
-    roomConfig.modifiers[SHOP_MODIFIERS.IS_EVERYTHING_FREE] = true
-    roomConfig.modifiers[SHOP_MODIFIERS.JOB_CHANGING_ROOM] = true
-    
-    if Config.JobChangingRoomActsAsPersonalChangingRoom then
-        roomConfig.modifiers[SHOP_MODIFIERS.CHANGING_ROOM] = true
-    end
-    
-    if not roomConfig.structure then
-        roomConfig.structure = SHOP_CONFIG_ALIAS.CLOTHING.structure
-    end
-    
-    RequestOpenClothingShopUI(shopType, roomConfig)
-end)
-
-function FixArmsForCurrentTop()
-    local currentOutfit = GetCurrentOutfit()
-    
-    if not currentOutfit or not currentOutfit.skin or not currentOutfit.skin.components then
-        return
-    end
-    
-    local topComponentHash = currentOutfit.skin.components["11"]
-    if not topComponentHash then
-        return
-    end
-    
-    local playerModel = GetEntityModel(PlayerPedId())
-    TriggerServerEvent("rcore_clothing:requestRecommendedArmsByHash", topComponentHash, playerModel)
+    return formattedItems
 end
 
-RegisterNetEvent("rcore_clothing:setRecommendedArmsByHash", function(armsData)
-    if not armsData or not armsData[1] then
+function AddEmptyClothingItems(itemsList, queryData, gender)
+    local componentId = queryData.componentId
+    local lastId = queryData.lastId
+    
+    if lastId >= 1 then
         return
     end
     
-    local recommendedArms = armsData[1].recommended_arms
-    if not recommendedArms then
-        return
+    local emptyItemFunctions = {
+        [8] = function() return GetEmptyUndershirt(gender) end,
+        [6] = function() return GetEmptyShoes(gender) end,
+        [4] = function() return GetEmptyPants(gender) end,
+        [1] = function() return GetEmptyMask() end,
+        [7] = function() return GetEmptyNeckwear() end,
+        [11] = function() return GetEmptyTorso(gender) end,
+        [9] = function() return GetEmptyVest(gender) end,
+        [5] = function() return GetEmptyBag(gender) end,
+        [100] = function() return GetEmptyHat() end,
+        [107] = function() return GetEmptyBracelet() end,
+        [106] = function() return GetEmptyWatches() end,
+        [102] = function() return GetEmptyEars() end,
+        [101] = function() return GetEmptyGlasses() end
+    }
+    
+    local emptyItemFunction = emptyItemFunctions[componentId]
+    if emptyItemFunction then
+        table.insert(itemsList, 1, emptyItemFunction())
+    end
+end
+
+RegisterNetEvent("rcore_clothing:requestOpenClothingShop", function(shopType, shopConfig)
+    local playerId = source
+    local playerPed = GetPlayerPed(playerId)
+    local playerModel = GetEntityModel(playerPed)
+    local playerIdentifier = GetPlayerFwIdentifier(playerId)
+    
+    local hasChangingRoom = false
+    local hasEverything = false
+    
+    if shopConfig then
+        if shopConfig.modifiers then
+            hasChangingRoom = shopConfig.modifiers[SHOP_MODIFIERS.CHANGING_ROOM]
+            hasEverything = shopConfig.modifiers[SHOP_MODIFIERS.HAS_EVERYTHING]
+        end
     end
     
-    local playerPed = PlayerPedId()
-    local armsComponentData = UsableHashToData(playerPed, recommendedArms)
+    local changingRoomIdentifier = nil
+    if hasChangingRoom and playerIdentifier then
+        changingRoomIdentifier = playerIdentifier
+    end
     
-    SetPedComponentVariation(playerPed, 3, armsComponentData.drawableId, armsComponentData.textureId, 0)
-    TriggerEvent("rcore_clothing:saveCurrentSkin")
+    local availableComponents = GetAvailableComponentsInShop(playerModel, shopType, hasEverything, changingRoomIdentifier)
+    local availableClothingTypes = GetAvailableClothingTypes(playerModel, shopType, hasEverything, changingRoomIdentifier)
+    local baseMenuData = FormatBaseMenuForComponents(availableComponents)
+    local typesPerComponent = FormatTypesPerComponentId(availableClothingTypes)
+    local serverJobs = GetAllServerJobs()
+    local playerPermissions = GetPlayerPermissions(playerId)
+    
+    local externalServerData = nil
+    if Config.ExternalServer then
+        externalServerData = {
+            playerJobData = FwGetPlayerJobData(playerId),
+            identifier = GetPlayerFwIdentifier(playerId),
+            identifiers = AppendAces(playerId, GetPlayerIdentifiers(playerId)),
+            apiUrl = Config.ExternalServer,
+            shopConfig = shopConfig
+        }
+    end
+    
+    TriggerClientEvent("rcore_clothing:openClothingShop", playerId, shopType, baseMenuData, typesPerComponent, playerPermissions, externalServerData)
+    
+    Wait(0)
+    TriggerClientEvent("rcore_clothing:setHairData", playerId, DbGetHair(playerModel))
+    
+    Wait(0)
+    TriggerClientEvent("rcore_clothing:setServerJobs", playerId, serverJobs)
+    
+    if shopType == "CHARCREATOR" then
+        PutPlayerIntoBucket(playerId)
+    end
+end)
+
+RegisterNetEvent("rcore_clothing:charcreator:done", function()
+    local playerId = source
+    ResetPlayerBucket(playerId)
+end)
+
+RegisterNetEvent("rcore_clothing:requestFullShopStructureExceptHead", function()
+    local playerId = source
+    local playerPed = GetPlayerPed(playerId)
+    local playerModel = GetEntityModel(playerPed)
+    
+    local availableComponents = GetAvailableComponentsInShop(playerModel)
+    local availableClothingTypes = GetAvailableClothingTypes(playerModel)
+    local baseMenuData = FormatBaseMenuForComponents(availableComponents)
+    local typesPerComponent = FormatTypesPerComponentId(availableClothingTypes)
+    
+    TriggerClientEvent("rcore_clothing:setShopBaseStructure", playerId, baseMenuData, typesPerComponent)
+end)
+
+function HandleAdminAction(playerId, permission, action, errorMessage)
+    if AceCan(playerId, permission) then
+        action()
+    else
+        print("^1Player with id " .. playerId .. errorMessage)
+    end
+end
+
+RegisterNetEvent("rcore_clothing:addItemToShop", function(shopData, itemData)
+    local playerId = source
+    HandleAdminAction(playerId, Permissions.ADMIN_STOCK_MANAGEMENT, function()
+        DbAddItemToShop(shopData, itemData)
+    end, " tried to add item to shop without permission.")
+end)
+
+RegisterNetEvent("rcore_clothing:removeItemFromShop", function(shopData, itemData)
+    local playerId = source
+    HandleAdminAction(playerId, Permissions.ADMIN_STOCK_MANAGEMENT, function()
+        DbRemoveItemFromShop(shopData, itemData)
+    end, " tried to remove item from shop without permission.")
+end)
+
+RegisterNetEvent("rcore_clothing:addGroupToShop", function(shopData, groupData)
+    local playerId = source
+    HandleAdminAction(playerId, Permissions.ADMIN_STOCK_MANAGEMENT, function()
+        DbAddGroupToShop(shopData, groupData)
+    end, " tried to add group to shop without permission.")
+end)
+
+RegisterNetEvent("rcore_clothing:removeGroupFromShop", function(shopData, groupData)
+    local playerId = source
+    HandleAdminAction(playerId, Permissions.ADMIN_STOCK_MANAGEMENT, function()
+        DbRemoveGroupFromShop(shopData, groupData)
+    end, " tried to remove group from shop without permission.")
+end)
+
+RegisterNetEvent("rcore_clothing:editItemMetadata", function(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
+    local playerId = source
+    HandleAdminAction(playerId, Permissions.ADMIN_EDIT_METADATA, function()
+        DbEditItemMetadata(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
+    end, " tried to edit item metadata without permission.")
+end)
+
+RegisterNetEvent("rcore_clothing:editGroupMetadata", function(arg1, arg2, arg3, arg4)
+    local playerId = source
+    HandleAdminAction(playerId, Permissions.ADMIN_EDIT_METADATA, function()
+        DbEditGroupMetadata(arg1, arg2, arg3, arg4)
+    end, " tried to edit group metadata without permission.")
+end)
+
+RegisterNetEvent("rcore_clothing:blacklistItem", function(itemData)
+    local playerId = source
+    HandleAdminAction(playerId, Permissions.ADMIN_IMAGE_DEBUG, function()
+        DbBlacklistItem(itemData)
+    end, " tried to blacklist item without permission.")
+end)
+
+RegisterNetEvent("rcore_clothing:resetItem", function(itemData)
+    local playerId = source
+    HandleAdminAction(playerId, Permissions.ADMIN_IMAGE_DEBUG, function()
+        DbResetItem(itemData)
+    end, " tried to reset item without permission.")
+end)
+
+RegisterNetEvent("rcore_clothing:setRecommendedArms", function(callbackId, itemHash, armsData, componentData)
+    local playerId = source
+    local success = false
+    
+    if AceCan(playerId, Permissions.ADMIN_EDIT_ARMS) then
+        DbEditRecommendedArms(itemHash, armsData)
+        success = true
+    else
+        print("^1Player with id " .. playerId .. " tried to edit recommended arms without permission.")
+    end
+    
+    TriggerClientEvent("rcore_clothing:setRecommendedArmsResult", playerId, callbackId, success)
+end)
+
+RegisterNetEvent("rcore_clothing:setGroupRecommendedArms", function(callbackId, groupHash, armsData)
+    local playerId = source
+    local success = false
+    
+    if AceCan(playerId, Permissions.ADMIN_EDIT_ARMS) then
+        DbEditGroupRecommendedArms(groupHash, armsData)
+        success = true
+    else
+        print("^1Player with id " .. playerId .. " tried to edit group recommended arms without permission.")
+    end
+    
+    TriggerClientEvent("rcore_clothing:setRecommendedArmsResult", playerId, callbackId, success)
+end)
+
+RegisterNetEvent("rcore_clothing:requestCurrentOutfit", function(callbackId)
+    local playerId = source
+    local playerPed = GetPlayerPed(playerId)
+    local playerModel = GetEntityModel(playerPed)
+    local playerIdentifier = GetPlayerFwIdentifier(playerId)
+    
+    local currentOutfit, outfitModel = DbGetOrCreateCurrentOutfit(playerIdentifier, playerModel)
+    
+    TriggerClientEvent("rcore_clothing:responseCurrentOutfit", playerId, callbackId, {
+        outfit = currentOutfit,
+        model = outfitModel
+    })
+end)
+
+RegisterNetEvent("rcore_clothing:requestRecommendedArmsByHash", function(itemHash, componentHash)
+    local playerId = source
+    local recommendedArms = DbGetRecommendedArmsByHash(itemHash, componentHash)
+    
+    TriggerClientEvent("rcore_clothing:setRecommendedArmsByHash", playerId, recommendedArms)
 end)
