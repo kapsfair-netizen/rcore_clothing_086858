@@ -1,108 +1,127 @@
-function GetClothingCollectionInfo(pedHandle, clothingItem)
-    local collectionName = GetPedCollectionNameFromDrawable(pedHandle, clothingItem.componentId, clothingItem.drawableId)
-    local collectionIndex = GetPedCollectionLocalIndexFromDrawable(pedHandle, clothingItem.componentId, clothingItem.drawableId)
-    
-    if collectionName == "" then
-        collectionName = "nondlcgta5"
-    end
-    
-    return collectionName, collectionIndex
-end
-
-function GetItemCollectionData(pedHandle, itemData, resolvedItem)
-    local componentId = itemData.component_id
-    
-    if componentId >= 100 then
-        -- Handle props (componentId >= 100)
-        local propComponentId = resolvedItem.componentId - 100
-        local propCollectionName = GetPedCollectionNameFromProp(pedHandle, propComponentId, resolvedItem.drawableId)
-        local propCollectionIndex = GetPedCollectionLocalIndexFromProp(pedHandle, propComponentId, resolvedItem.drawableId)
-        
-        if propCollectionName == "" then
-            propCollectionName = "nondlcgta5"
-        end
-        
-        return {
-            collection = propCollectionName,
-            index = propCollectionIndex
-        }
+local L0_1, L1_1, L2_1, L3_1, L4_1
+function L0_1(A0_2)
+  local L1_2, L2_2, L3_2, L4_2, L5_2, L6_2, L7_2, L8_2, L9_2, L10_2, L11_2, L12_2, L13_2, L14_2, L15_2, L16_2
+  L1_2 = pairs
+  L2_2 = A0_2
+  L1_2, L2_2, L3_2, L4_2 = L1_2(L2_2)
+  for L5_2, L6_2 in L1_2, L2_2, L3_2, L4_2 do
+    L7_2 = tonumber
+    L8_2 = L5_2
+    L7_2 = L7_2(L8_2)
+    L5_2 = L7_2
+    L7_2 = nil
+    L8_2 = {}
+    L9_2 = L6_2.recArms
+    if L9_2 then
+      L9_2 = "UPDATE rcore_clothing_items SET name_hash = @newNameHash_"
+      L10_2 = L5_2
+      L11_2 = ", recommended_arms=@recArms_"
+      L12_2 = L5_2
+      L13_2 = " WHERE name_hash=@oldNameHash_"
+      L14_2 = L5_2
+      L15_2 = "  AND ped_model=@pedModel_"
+      L16_2 = L5_2
+      L9_2 = L9_2 .. L10_2 .. L11_2 .. L12_2 .. L13_2 .. L14_2 .. L15_2 .. L16_2
+      L7_2 = L9_2
     else
-        -- Handle regular clothing
-        local clothingCollectionName, clothingCollectionIndex = GetClothingCollectionInfo(pedHandle, resolvedItem)
-        
-        return {
-            collection = clothingCollectionName,
-            index = clothingCollectionIndex
-        }
+      L9_2 = "UPDATE rcore_clothing_items SET name_hash = @newNameHash_"
+      L10_2 = L5_2
+      L11_2 = "  WHERE name_hash=@oldNameHash_"
+      L12_2 = L5_2
+      L13_2 = "  AND ped_model=@pedModel_"
+      L14_2 = L5_2
+      L9_2 = L9_2 .. L10_2 .. L11_2 .. L12_2 .. L13_2 .. L14_2
+      L7_2 = L9_2
     end
+    L9_2 = "@newNameHash_"
+    L10_2 = L5_2
+    L9_2 = L9_2 .. L10_2
+    L10_2 = L6_2.newHash
+    L8_2[L9_2] = L10_2
+    L9_2 = "@oldNameHash_"
+    L10_2 = L5_2
+    L9_2 = L9_2 .. L10_2
+    L10_2 = L6_2.oldHash
+    L8_2[L9_2] = L10_2
+    L9_2 = "@pedModel_"
+    L10_2 = L5_2
+    L9_2 = L9_2 .. L10_2
+    L10_2 = L6_2.pedModel
+    L8_2[L9_2] = L10_2
+    L9_2 = L6_2.recArms
+    if L9_2 then
+      L9_2 = "@recArms_"
+      L10_2 = L5_2
+      L9_2 = L9_2 .. L10_2
+      L10_2 = L6_2.recArms
+      L8_2[L9_2] = L10_2
+    end
+    L9_2 = MySQL
+    L9_2 = L9_2.Sync
+    L9_2 = L9_2.execute
+    L10_2 = L7_2
+    L11_2 = L8_2
+    L9_2(L10_2, L11_2)
+  end
 end
-
-function ProcessRecommendedArms(pedHandle, itemData)
-    local recommendedArms = itemData.recommended_arms
-    
-    if not recommendedArms or recommendedArms == "" then
-        return nil
-    end
-    
-    local armsData = UsableHashToData(pedHandle, recommendedArms)
-    
-    if not armsData.componentId or armsData.componentId <= 0 then
-        return nil
-    end
-    
-    local armsCollectionName, armsCollectionIndex = GetClothingCollectionInfo(pedHandle, armsData)
-    
-    return armsCollectionName .. "--" .. armsData.componentId .. "--" .. armsCollectionIndex .. "--" .. armsData.textureId
+function L1_1(A0_2)
+  local L1_2, L2_2, L3_2, L4_2, L5_2, L6_2, L7_2
+  L1_2 = MySQL
+  L1_2 = L1_2.Sync
+  L1_2 = L1_2.fetchAll
+  L2_2 = [[
+        SELECT * FROM rcore_clothing_items WHERE name_hash NOT LIKE '%--%' AND decal_collection_hash IS NULL AND game_build <= @gameBuild ORDER BY ped_model ASC, id ASC LIMIT 50
+    ]]
+  L3_2 = {}
+  L4_2 = GetGameBuild
+  L4_2 = L4_2()
+  L3_2["@gameBuild"] = L4_2
+  L1_2 = L1_2(L2_2, L3_2)
+  L2_2 = MySQL
+  L2_2 = L2_2.Sync
+  L2_2 = L2_2.fetchScalar
+  L3_2 = "SELECT COUNT(*) FROM rcore_clothing_items WHERE name_hash NOT LIKE '%--%' AND decal_collection_hash IS NULL AND game_build <= @gameBuild"
+  L4_2 = {}
+  L5_2 = GetGameBuild
+  L5_2 = L5_2()
+  L4_2["@gameBuild"] = L5_2
+  L2_2 = L2_2(L3_2, L4_2)
+  L3_2 = #L1_2
+  if L3_2 > 0 then
+    L3_2 = TriggerClientEvent
+    L4_2 = "rcore_clothing:stage00:processItems"
+    L5_2 = A0_2
+    L6_2 = L1_2
+    L7_2 = L2_2
+    L3_2(L4_2, L5_2, L6_2, L7_2)
+  else
+    L3_2 = MySQL
+    L3_2 = L3_2.Sync
+    L3_2 = L3_2.execute
+    L4_2 = "DELETE FROM rcore_clothing_items WHERE name_hash LIKE \"%delme__%\""
+    L3_2(L4_2)
+    L3_2 = print
+    L4_2 = "Hash migration completed"
+    L3_2(L4_2)
+  end
 end
-
-function CreateNewHashString(collectionData, resolvedItem, itemIndex)
-    local collectionName = collectionData.collection
-    
-    if not collectionName then
-        collectionName = "delme__" .. itemIndex
-    end
-    
-    local componentId = resolvedItem.componentId or 0
-    local textureId = resolvedItem.textureId or 0
-    
-    return collectionName .. "--" .. componentId .. "--" .. collectionData.index .. "--" .. textureId
+L2_1 = RegisterNetEvent
+L3_1 = "rcore_clothing:stage00:resolveItems"
+function L4_1(A0_2)
+  local L1_2, L2_2, L3_2
+  L1_2 = source
+  L2_2 = L0_1
+  L3_2 = A0_2
+  L2_2(L3_2)
+  L2_2 = L1_1
+  L3_2 = L1_2
+  L2_2(L3_2)
 end
-
-RegisterNetEvent("rcore_clothing:stage00:processItems", function(itemsList, remainingCount)
-    print("Processing", #itemsList, "remaining", remainingCount)
-    
-    local processedItems = {}
-    
-    for itemIndex, itemData in pairs(itemsList) do
-        local currentPed = PlayerPedId()
-        local currentPedModel = GetEntityModel(currentPed)
-        
-        -- Load correct ped model if different
-        if itemData.ped_model ~= currentPedModel then
-            LoadAndSetModel(itemData.ped_model)
-            currentPed = PlayerPedId()
-        end
-        
-        -- Resolve the item to clothing/prop format
-        local resolvedItem = ResolveItemToClothingOrPropItem(currentPed, itemData)
-        
-        -- Get collection data for the resolved item
-        local collectionData = GetItemCollectionData(currentPed, itemData, resolvedItem)
-        
-        -- Process recommended arms if present
-        local recommendedArmsHash = ProcessRecommendedArms(currentPed, itemData)
-        
-        -- Create new hash string
-        local newHashString = CreateNewHashString(collectionData, resolvedItem, itemIndex)
-        
-        -- Add processed item to results
-        table.insert(processedItems, {
-            oldHash = itemData.name_hash,
-            pedModel = itemData.ped_model,
-            newHash = newHashString,
-            recArms = recommendedArmsHash
-        })
-    end
-    
-    TriggerServerEvent("rcore_clothing:stage00:resolveItems", processedItems)
-end)
+L2_1(L3_1, L4_1)
+function L2_1(A0_2)
+  local L1_2, L2_2
+  L1_2 = L1_1
+  L2_2 = A0_2
+  L1_2(L2_2)
+end
+Stage00MigrateHashes = L2_1

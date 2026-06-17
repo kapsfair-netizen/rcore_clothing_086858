@@ -1,72 +1,19 @@
-fx_version 'cerulean'
+fx_version 'bodacious'
 game 'gta5'
-
-description 'rcore clothing'
-author 'teb & kralik'
-
-lua54 'yes'
-
-version '2.7.1'
-
-ui_page 'client/ui/index.html'
-
+description 'rcore clothing - for photos'
+this_is_a_map 'yes'
+version '2.1.0'
 files {
-    "client/ui/index.html",
-    "client/ui/**/*",
+    'stream/rds_clothes_booth.ytyp',
+    'timecycle_rcore_clothing.xml',
+    'timecycle_rcore_clothing_2.xml',
+    'mp_m_freemode_01_teb_invisible.meta',
+    'mp_f_freemode_01_teb_invisible.meta'
 }
-
-client_scripts {
-    'shared/object.lua',
-    'config.lua',
-    'shared/private.lua',
-    'configs/*.lua',
-    'data/*.lua',
-    'client/**/*.lua',
-    "permissions.lua",
-}
-
-server_scripts {
-    'shared/object.lua',
-    'data/*.lua',
-    'config.lua',
-    'shared/private.lua',
-    'configs/*.lua',
-    '@mysql-async/lib/MySQL.lua',
-    'server/**/*.lua',
-    "permissions.lua",
-    'server/clothing_finder.js',
-}
-
-shared_scripts {
-    'shared/**/*.lua',
-    'locales/*.lua',
-}
-
-escrow_ignore {
-    'config.lua',
-    'shared/shop_format.lua',
-    'configs/*',
-    'permissions.lua',
-    'shared/object.lua',
-    'client/framework/**',
-    'client/impl/**',
-    'server/db/**',
-    'server/framework/**',
-    'server/impl/**',
-    'server/editable.lua',
-    'server/load.lua',
-    'locales/*',
-    'server/module/data/shop_structure.lua',
-    'client/blips.lua',
-    'client/client.lua',
-    'client/interact.lua',
-    'client/module/nui/utils.lua',
-    'shared/const.lua',
-}
-
-provides {
-    'skinchanger',
-    'esx_skin',
-    'qb-clothing',
-}
+data_file 'DLC_ITYP_REQUEST' 'stream/rds_clothes_booth.ytyp'
+data_file 'TIMECYCLEMOD_FILE' 'timecycle_rcore_clothing.xml'
+data_file 'TIMECYCLEMOD_FILE' 'timecycle_rcore_clothing_2.xml'
+version '1.0.0'
+data_file 'SHOP_PED_APPAREL_META_FILE' 'mp_m_freemode_01_teb_invisible.meta'
+data_file 'SHOP_PED_APPAREL_META_FILE' 'mp_f_freemode_01_teb_invisible.meta'
 dependency '/assetpacks'

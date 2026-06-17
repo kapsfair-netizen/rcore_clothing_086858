@@ -1,295 +1,256 @@
-local activePeds = {}
-
--- Ped model constants
-local FEMALE_PED_MODEL = 1885233650
-local MALE_PED_MODEL = -1667301416
-
-function ProcessClothingComponents(pedModel)
-    local maxArmsComponent = (pedModel == FEMALE_PED_MODEL) and 3 or 4
-    
-    -- Define clothing component IDs to process
-    local clothingComponents = {1, 2, 3, 4, 5, 6, 7, 80, 81, 9, 10, 110, 111}
-    local processingTasks = {}
-    
-    for index, componentId in pairs(clothingComponents) do
-        Wait(0)
-        local playerCoords = GetEntityCoords(PlayerPedId())
-        
-        Citizen.CreateThread(function()
-            -- Position peds in a grid pattern
-            local offsetPosition = playerCoords + vector3(index / 3, (index % 3) / 2, 1.0)
-            
-            local tempPed = CreatePed(0, pedModel, offsetPosition, 0.0, false, false)
-            SetBlockingOfNonTemporaryEvents(tempPed, true)
-            SetPedHeadBlendData(tempPed, 0, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, false)
-            
-            processingTasks[componentId] = {
-                ped = tempPed,
-                done = false
-            }
-            
-            activePeds[tempPed] = tempPed
-            
-            Wait(500)
-            
-            HandleClothingComponent(tempPed, pedModel, componentId, maxArmsComponent)
-            
-            activePeds[tempPed] = nil
-            DeletePed(tempPed)
-            processingTasks[componentId].done = true
-        end)
-    end
+local L0_1, L1_1, L2_1, L3_1, L4_1
+function L0_1(A0_2)
+  local L1_2, L2_2, L3_2, L4_2, L5_2, L6_2, L7_2
+  L1_2 = A0_2.collectionName
+  L2_2 = "--"
+  L3_2 = A0_2.componentId
+  L4_2 = "--"
+  L5_2 = A0_2.collectionIndex
+  L6_2 = "--"
+  L7_2 = A0_2.textureId
+  L1_2 = L1_2 .. L2_2 .. L3_2 .. L4_2 .. L5_2 .. L6_2 .. L7_2
+  return L1_2
 end
-
-function HandleProps(pedModel)
-    -- Define prop component IDs to process (hats, glasses, earrings, watches, bracelets)
-    local propComponents = {0, 1, 2, 6, 7}
-    local processingTasks = {}
-    
-    for index, propId in pairs(propComponents) do
-        Wait(0)
-        local playerCoords = GetEntityCoords(PlayerPedId())
-        
-        Citizen.CreateThread(function()
-            -- Position peds in a grid pattern (slightly different from clothing)
-            local offsetPosition = playerCoords + vector3(index / 3, -((index % 3) / 2) + 2.0, 1.0)
-            
-            local tempPed = CreatePed(0, pedModel, offsetPosition, 0.0, false, false)
-            SetBlockingOfNonTemporaryEvents(tempPed, true)
-            SetPedHeadBlendData(tempPed, 0, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, false)
-            
-            processingTasks[propId] = {
-                ped = tempPed,
-                done = false
-            }
-            
-            activePeds[tempPed] = tempPed
-            
-            Wait(500)
-            
-            HandlePropsComponent(tempPed, pedModel, propId)
-            
-            activePeds[tempPed] = nil
-            DeletePed(tempPed)
-            processingTasks[propId].done = true
-        end)
+function L1_1(A0_2)
+  local L1_2, L2_2, L3_2, L4_2, L5_2, L6_2, L7_2, L8_2, L9_2, L10_2, L11_2, L12_2, L13_2, L14_2, L15_2, L16_2, L17_2, L18_2, L19_2, L20_2
+  L1_2 = {}
+  L2_2 = nil
+  L3_2 = pairs
+  L4_2 = A0_2
+  L3_2, L4_2, L5_2, L6_2 = L3_2(L4_2)
+  for L7_2, L8_2 in L3_2, L4_2, L5_2, L6_2 do
+    L9_2 = L0_1
+    L10_2 = L8_2
+    L9_2 = L9_2(L10_2)
+    L10_2 = table
+    L10_2 = L10_2.insert
+    L11_2 = L1_2
+    L12_2 = tostring
+    L13_2 = L9_2
+    L12_2, L13_2, L14_2, L15_2, L16_2, L17_2, L18_2, L19_2, L20_2 = L12_2(L13_2)
+    L10_2(L11_2, L12_2, L13_2, L14_2, L15_2, L16_2, L17_2, L18_2, L19_2, L20_2)
+    if nil == L2_2 then
+      L2_2 = L8_2.pedModel
+    else
+      L10_2 = L8_2.pedModel
+      if L2_2 ~= L10_2 then
+        L10_2 = print
+        L11_2 = "Multiple ped models in one batch, not supported"
+        L10_2(L11_2)
+        L10_2 = {}
+        return L10_2
+      end
     end
-end
-
-function HandleClothingComponent(pedHandle, pedModel, componentId, maxArmsComponent)
-    local mappingData = {}
-    
-    IterateOverVariations(pedHandle, componentId, 0, 0, function(ped, compId, drawableId, textureId)
-        print("Processing", compId, drawableId)
-        
-        local nameHash = GetHashNameForComponent(pedModel, compId, drawableId, textureId)
-        local shopData = GetShopPedComponent(nameHash)
-        local decalVariations = GetDecalVariations(maxArmsComponent, pedModel, nameHash)
-        local forcedComponents = GetForcedComponents(pedModel, nameHash)
-        local recommendedArms = ResolveRecommendedArms(pedModel, forcedComponents)
-        
-        local collectionName = GetPedCollectionNameFromDrawable(pedHandle, compId, drawableId)
-        local collectionIndex = GetPedCollectionLocalIndexFromDrawable(pedHandle, compId, drawableId)
-        
-        if collectionName == "" then
-            collectionName = "nondlcgta5"
-        end
-        
-        if not collectionName or not collectionIndex then
-            print("No collection name/index for", compId, drawableId)
-        end
-        
-        -- Add base clothing item
-        table.insert(mappingData, {
-            nameHash = nameHash,
-            componentId = compId,
-            drawableId = drawableId,
-            textureId = textureId,
-            pedModel = pedModel,
-            collectionName = collectionName,
-            collectionIndex = collectionIndex,
-            labelGxt = shopData.Label,
-            label = GetLabelText(shopData.Label),
-            price = ResolvePrice(shopData.Price),
-            recommendedArms = recommendedArms,
-            setComponents = forcedComponents
-        })
-        
-        -- Add decal variations
-        for _, decalVariation in ipairs(decalVariations) do
-            local decalPrice = decalVariation.Price
-            if decalPrice == nil then
-                decalPrice = ResolvePrice(shopData.Price) or decalVariation.Price
-            end
-            
-            table.insert(mappingData, {
-                nameHash = nameHash,
-                componentId = compId,
-                drawableId = drawableId,
-                textureId = textureId,
-                pedModel = pedModel,
-                collectionName = collectionName,
-                collectionIndex = collectionIndex,
-                decalCollectionHash = decalVariation.CollectionHash,
-                decalNameHash = decalVariation.DecorationNameHash,
-                labelGxt = decalVariation.Label,
-                label = GetLabelText(decalVariation.Label),
-                price = decalPrice,
-                recommendedArms = recommendedArms,
-                setComponents = forcedComponents
-            })
-            
-            -- Send data in batches to avoid overwhelming server
-            if #mappingData > 40 then
-                print("Sending to server...")
-                TriggerServerEvent("rcore_clothing:sendClothingMappingData", mappingData)
-                Wait(1000)
-                mappingData = {}
-            end
-        end
-        
-        -- Check batch size after processing base item too
-        if #mappingData > 40 then
-            print("Sending to server...")
-            TriggerServerEvent("rcore_clothing:sendClothingMappingData", mappingData)
-            Wait(1000)
-            mappingData = {}
-        end
-    end)
-    
-    -- Send remaining data
-    print("Sending rest...")
-    TriggerServerEvent("rcore_clothing:sendClothingMappingData", mappingData)
-end
-
-function HandlePropsComponent(pedHandle, pedModel, propId)
-    local mappingData = {}
-    
-    IterateOverProps(pedHandle, propId, 0, 0, function(ped, anchorPoint, drawableId, textureId)
-        print("Processing", anchorPoint, drawableId, textureId)
-        
-        local nameHash = GetHashNameForProp(pedModel, propId, drawableId, textureId)
-        local shopData = GetShopPedProp(nameHash)
-        
-        local collectionName = GetPedCollectionNameFromProp(pedHandle, propId, drawableId)
-        local collectionIndex = GetPedCollectionLocalIndexFromProp(pedHandle, propId, drawableId)
-        
-        if collectionName == "" then
-            collectionName = "nondlcgta5"
-        end
-        
-        table.insert(mappingData, {
-            nameHash = nameHash,
-            componentId = 100 + propId, -- Props use component IDs 100+
-            drawableId = drawableId,
-            textureId = textureId,
-            pedModel = pedModel,
-            collectionName = collectionName,
-            collectionIndex = collectionIndex,
-            labelGxt = shopData.Label,
-            label = GetLabelText(shopData.Label),
-            price = ResolvePrice(shopData.Price)
-        })
-        
-        -- Send data in batches
-        if #mappingData > 40 then
-            print("Sending to server...")
-            TriggerServerEvent("rcore_clothing:sendPropMappingData", mappingData)
-            Wait(1000)
-            mappingData = {}
-        end
-    end)
-    
-    -- Send remaining data
-    print("Sending rest...")
-    TriggerServerEvent("rcore_clothing:sendPropMappingData", mappingData)
-end
-
-function ResolveLabel(labelGxt)
-    if labelGxt and labelGxt ~= "" then
-        return GetLabelText(labelGxt)
-    end
-    return nil
-end
-
-function ResolvePrice(price)
-    if price and price > 0 then
-        return price
-    end
-    return nil
-end
-
-function ResolveRecommendedArms(pedModel, forcedComponents)
-    local armsComponentId = 3
-    
-    for _, component in ipairs(forcedComponents) do
-        if component.componentId == armsComponentId then
-            local nameHash = component.nameHash
-            local drawableId = component.drawableId
-            local textureId = component.textureId
-            local shopData = GetShopPedComponent(nameHash)
-            
-            return GetUsableHash(3, drawableId, textureId, shopData.Hash)
-        end
-    end
-    
-    return nil
-end
-
--- Event handlers
-RegisterNetEvent("rcore_clothing:pipelineInitStage1", function()
-    -- Precompute tattoo cache for both male and female
-    PrecomputeTattooCache(3)
-    PrecomputeTattooCache(4)
-    
-    -- Wait for tattoo cache to be ready
-    while not IsTattooCacheReady() do
-        Wait(0)
-    end
-    
-    -- Request both ped models
-    RequestModel(FEMALE_PED_MODEL)
-    RequestModel(MALE_PED_MODEL)
-    
-    -- Wait for models to load
-    while not (HasModelLoaded(FEMALE_PED_MODEL) and HasModelLoaded(MALE_PED_MODEL)) do
-        Wait(0)
-    end
-    
-    -- Process props for both models
-    HandleProps(FEMALE_PED_MODEL)
-    HandleProps(MALE_PED_MODEL)
-    
-    -- Process clothing components for both models
-    ProcessClothingComponents(FEMALE_PED_MODEL)
-    ProcessClothingComponents(MALE_PED_MODEL)
-    
-    Wait(1000)
-    
-    -- Wait for all processing to complete
-    while true do
-        local stillProcessing = false
-        
-        for pedHandle, _ in pairs(activePeds) do
-            stillProcessing = true
-        end
-        
-        if not stillProcessing then
-            ShowInfoDialog("pipeline_recalib_done", "Recalibration done", "Recalibration done! 🎉 You can now close this window.")
+  end
+  L3_2 = {}
+  L4_2 = #L1_2
+  if L4_2 > 0 then
+    L4_2 = DbCollectorGetByPedModelAndHashes
+    L5_2 = L2_2
+    L6_2 = L1_2
+    L4_2 = L4_2(L5_2, L6_2)
+    L5_2 = pairs
+    L6_2 = A0_2
+    L5_2, L6_2, L7_2, L8_2 = L5_2(L6_2)
+    for L9_2, L10_2 in L5_2, L6_2, L7_2, L8_2 do
+      L11_2 = L0_1
+      L12_2 = L10_2
+      L11_2 = L11_2(L12_2)
+      L12_2 = tostring
+      L13_2 = L11_2
+      L12_2 = L12_2(L13_2)
+      L11_2 = L12_2
+      L12_2 = false
+      L13_2 = pairs
+      L14_2 = L4_2
+      L13_2, L14_2, L15_2, L16_2 = L13_2(L14_2)
+      for L17_2, L18_2 in L13_2, L14_2, L15_2, L16_2 do
+        L19_2 = L18_2.name_hash
+        if L19_2 == L11_2 then
+          L19_2 = L10_2.decalCollectionHash
+          if nil ~= L19_2 then
+            L19_2 = L10_2.decalNameHash
+            if nil ~= L19_2 then
+              L19_2 = L18_2.decal_collection_hash
+              L20_2 = L10_2.decalCollectionHash
+              if L19_2 == L20_2 then
+                L19_2 = L18_2.decal_name_hash
+                L20_2 = L10_2.decalNameHash
+                if L19_2 == L20_2 then
+                  L12_2 = true
+                  break
+                end
+              end
+          end
+          else
+            L12_2 = true
             break
+          end
         end
-        
-        Wait(100)
+      end
+      if not L12_2 then
+        L13_2 = table
+        L13_2 = L13_2.insert
+        L14_2 = L3_2
+        L15_2 = L10_2
+        L13_2(L14_2, L15_2)
+      end
     end
-end)
-
-AddEventHandler("onResourceStop", function(resourceName)
-    local currentResource = GetCurrentResourceName()
-    
-    if resourceName == currentResource then
-        -- Clean up any remaining peds
-        for pedHandle, _ in pairs(activePeds) do
-            DeleteEntity(pedHandle)
-        end
-    end
-end)
+    return L3_2
+  else
+    L4_2 = {}
+    return L4_2
+  end
+end
+Stage1FilterOutKnownItems = L1_1
+function L1_1(A0_2)
+  local L1_2, L2_2, L3_2, L4_2, L5_2, L6_2, L7_2, L8_2, L9_2, L10_2, L11_2
+  L1_2 = {}
+  L2_2 = pairs
+  L3_2 = A0_2
+  L2_2, L3_2, L4_2, L5_2 = L2_2(L3_2)
+  for L6_2, L7_2 in L2_2, L3_2, L4_2, L5_2 do
+    L8_2 = table
+    L8_2 = L8_2.insert
+    L9_2 = L1_2
+    L10_2 = L0_1
+    L11_2 = L7_2
+    L10_2, L11_2 = L10_2(L11_2)
+    L8_2(L9_2, L10_2, L11_2)
+  end
+  L2_2 = #L1_2
+  if L2_2 > 0 then
+    L2_2 = DbCollectorMarkAsFound
+    L3_2 = L1_2
+    L2_2(L3_2)
+  end
+end
+function L2_1()
+  local L0_2, L1_2, L2_2, L3_2
+  L0_2 = MySQL
+  L0_2 = L0_2.Sync
+  L0_2 = L0_2.fetchScalar
+  L1_2 = "SELECT COUNT(*) FROM rcore_clothing_items WHERE name_hash NOT LIKE '%--%' AND decal_collection_hash IS NULL AND game_build <= @gameBuild"
+  L2_2 = {}
+  L3_2 = GetGameBuild
+  L3_2 = L3_2()
+  L2_2["@gameBuild"] = L3_2
+  L0_2 = L0_2(L1_2, L2_2)
+  L1_2 = L0_2 > 0
+  return L1_2
+end
+IsAnyItemPendingMigration = L2_1
+L2_1 = RegisterNetEvent
+L3_1 = "rcore_clothing:sendClothingMappingData"
+function L4_1(A0_2)
+  local L1_2, L2_2, L3_2, L4_2, L5_2, L6_2, L7_2, L8_2, L9_2, L10_2, L11_2, L12_2, L13_2, L14_2, L15_2, L16_2, L17_2, L18_2, L19_2, L20_2, L21_2
+  L1_2 = source
+  L2_2 = GetRecalibrationInProgress
+  L2_2 = L2_2()
+  if L2_2 ~= L1_2 then
+    L2_2 = SendNotification
+    L3_2 = L1_2
+    L4_2 = "Recalibration is not in progress or it is performed by someone else"
+    L2_2(L3_2, L4_2)
+    return
+  end
+  L2_2 = L1_1
+  L3_2 = A0_2
+  L2_2(L3_2)
+  L2_2 = #A0_2
+  L3_2 = Stage1FilterOutKnownItems
+  L4_2 = A0_2
+  L3_2 = L3_2(L4_2)
+  A0_2 = L3_2
+  L3_2 = print
+  L4_2 = "[calibration] Received items: "
+  L5_2 = L2_2
+  L6_2 = ", Relevant items:"
+  L7_2 = #A0_2
+  L4_2 = L4_2 .. L5_2 .. L6_2 .. L7_2
+  L3_2(L4_2)
+  L3_2 = pairs
+  L4_2 = A0_2
+  L3_2, L4_2, L5_2, L6_2 = L3_2(L4_2)
+  for L7_2, L8_2 in L3_2, L4_2, L5_2, L6_2 do
+    L9_2 = L0_1
+    L10_2 = L8_2
+    L9_2 = L9_2(L10_2)
+    L8_2.nameHash = L9_2
+    L9_2 = DbCollectorInsertItem
+    L10_2 = L8_2.nameHash
+    L11_2 = L8_2.componentId
+    L12_2 = L8_2.drawableId
+    L13_2 = L8_2.textureId
+    L14_2 = L8_2.pedModel
+    L15_2 = L8_2.decalCollectionHash
+    L16_2 = L8_2.decalNameHash
+    L17_2 = L8_2.labelGxt
+    L18_2 = L8_2.label
+    L19_2 = L8_2.price
+    L20_2 = L8_2.recommendedArms
+    L21_2 = L8_2.setComponents
+    L9_2(L10_2, L11_2, L12_2, L13_2, L14_2, L15_2, L16_2, L17_2, L18_2, L19_2, L20_2, L21_2)
+  end
+  L3_2 = print
+  L4_2 = "[calibration] Done"
+  L3_2(L4_2)
+end
+L2_1(L3_1, L4_1)
+L2_1 = RegisterNetEvent
+L3_1 = "rcore_clothing:sendPropMappingData"
+function L4_1(A0_2)
+  local L1_2, L2_2, L3_2, L4_2, L5_2, L6_2, L7_2, L8_2, L9_2, L10_2, L11_2, L12_2, L13_2, L14_2, L15_2, L16_2, L17_2, L18_2, L19_2, L20_2, L21_2
+  L1_2 = source
+  L2_2 = GetRecalibrationInProgress
+  L2_2 = L2_2()
+  if L2_2 ~= L1_2 then
+    L2_2 = SendNotification
+    L3_2 = L1_2
+    L4_2 = "Recalibration is not in progress or it is performed by someone else"
+    L2_2(L3_2, L4_2)
+    return
+  end
+  L2_2 = L1_1
+  L3_2 = A0_2
+  L2_2(L3_2)
+  L2_2 = #A0_2
+  L3_2 = Stage1FilterOutKnownItems
+  L4_2 = A0_2
+  L3_2 = L3_2(L4_2)
+  A0_2 = L3_2
+  L3_2 = print
+  L4_2 = "[calibration] Received items: "
+  L5_2 = L2_2
+  L6_2 = ", Relevant items:"
+  L7_2 = #A0_2
+  L4_2 = L4_2 .. L5_2 .. L6_2 .. L7_2
+  L3_2(L4_2)
+  L3_2 = pairs
+  L4_2 = A0_2
+  L3_2, L4_2, L5_2, L6_2 = L3_2(L4_2)
+  for L7_2, L8_2 in L3_2, L4_2, L5_2, L6_2 do
+    L9_2 = L0_1
+    L10_2 = L8_2
+    L9_2 = L9_2(L10_2)
+    L8_2.nameHash = L9_2
+    L9_2 = DbCollectorInsertItem
+    L10_2 = L8_2.nameHash
+    L11_2 = L8_2.componentId
+    L12_2 = L8_2.drawableId
+    L13_2 = L8_2.textureId
+    L14_2 = L8_2.pedModel
+    L15_2 = nil
+    L16_2 = nil
+    L17_2 = L8_2.labelGxt
+    L18_2 = L8_2.label
+    L19_2 = L8_2.price
+    L20_2 = nil
+    L21_2 = nil
+    L9_2(L10_2, L11_2, L12_2, L13_2, L14_2, L15_2, L16_2, L17_2, L18_2, L19_2, L20_2, L21_2)
+  end
+  L3_2 = print
+  L4_2 = "[calibration] Done"
+  L3_2(L4_2)
+end
+L2_1(L3_1, L4_1)
